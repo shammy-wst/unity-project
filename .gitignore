@@ -1,0 +1,33 @@
+[Libraries and caches]
+[Libraries and caches]
+[Libraries and caches]
+[Libraries and caches]
+[Libraries and caches]
+[Libraries and caches]
+[Libraries and caches]
+/[Libraries and caches]
+/Library/
+/Temp/
+/Obj/
+/Build/
+/Builds/
+/Logs/
+
+[Visual Studio files]
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+
+[Mac files]
+.DS_Store
+
+[Unity generated]
+/MemoryCaptures/
+*.unitypackage
