@@ -12,6 +12,8 @@ GameObject:
   - component: {fileID: 1139528892635945559}
   - component: {fileID: 4412546626762329523}
   - component: {fileID: 5729508007283648552}
+  - component: {fileID: -5860640085324108143}
+  - component: {fileID: 8955570267962928515}
   m_Layer: 0
   m_Name: ARPlanePrefab
   m_TagString: Untagged
@@ -65,8 +67,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 10303, guid: 0000000000000000f000000000000000, type: 0}
-  - {fileID: 2100000, guid: 6243af249fdc27f4cbed81d15e5b5efe, type: 2}
+  - {fileID: 2100000, guid: 8baf751376b7f4ee2819d40d8bc01616, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -110,3 +111,30 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 10209, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!114 &-5860640085324108143
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4500663311550297019}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 26a0450e6064247808475d36a542c06f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxPlaneSize: 1.5
+--- !u!114 &8955570267962928515
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4500663311550297019}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5f66da7470dce8f4d821d71dd2b1d4ac, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_DestroyOnRemoval: 1
+  m_VertexChangedThreshold: 0.01

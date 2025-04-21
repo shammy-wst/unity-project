@@ -169,7 +169,7 @@ PlayerSettings:
   androidMinAspectRatio: 1
   applicationIdentifier:
     Standalone: com.DefaultCompany.3D-Project
-    iPhone: com.shammy.app
+    iPhone: com.3w.heticproject
   buildNumber:
     Standalone: 0
     VisionOS: 0
@@ -859,7 +859,7 @@ PlayerSettings:
   qnxGraphicConfPath: 
   apiCompatibilityLevel: 6
   captureStartupLogs: {}
-  activeInputHandler: 1
+  activeInputHandler: 2
   windowsGamepadBackendHint: 0
   cloudProjectId: 61f6162f-f4c5-4e21-9a5d-c04fbc54eaf3
   framebufferDepthMemorylessMode: 0
