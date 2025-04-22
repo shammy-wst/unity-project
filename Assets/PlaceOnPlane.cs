@@ -3,66 +3,288 @@ using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARSubsystems;
 using System.Collections.Generic;
 
-public class PlaceOnPlane : MonoBehaviour
+/// <summary>
+/// Gestionnaire de placement d'objets sur les plans AR
+/// </summary>
+public class PlaceOnPlane : ARManagerBase
 {
+    [Header("Settings")]
+    [SerializeField] private string poolTag = "PlacedObject";
+    [SerializeField] private int initialPoolSize = 5;
+    [SerializeField] private float raycastCacheDuration = 0.1f;
+    
     public GameObject objectToPlace;
     private ARRaycastManager _raycastManager;
     private ARPlaneManager _planeManager;
     public Camera arCamera;
 
     private List<ARRaycastHit> _hits = new List<ARRaycastHit>();
+    private ObjectPool objectPool;
+    private RaycastCache raycastCache;
 
-    void Start()
+    private class RaycastCache
+    {
+        public Vector2 touchPosition;
+        public List<ARRaycastHit> hits;
+        public float timestamp;
+    }
+
+    protected override void ValidateComponents()
     {
         _raycastManager = GetComponent<ARRaycastManager>();
         _planeManager = GetComponent<ARPlaneManager>();
 
-        Debug.Log("PlaceOnPlane : Script démarré, prêt.");
+        if (_raycastManager == null || _planeManager == null || arCamera == null)
+        {
+            Debug.LogError($"{GetType().Name} : Composants AR requis non trouvés!");
+            return;
+        }
+
+        if (objectToPlace == null)
+        {
+            Debug.LogError($"{GetType().Name} : Aucun objet à placer défini!");
+            return;
+        }
+
+        InitializeObjectPool();
+        raycastCache = new RaycastCache();
+    }
+
+    private void InitializeObjectPool()
+    {
+        objectPool = FindFirstObjectByType<ObjectPool>();
+        if (objectPool == null)
+        {
+            GameObject poolObj = new GameObject("ObjectPool");
+            objectPool = poolObj.AddComponent<ObjectPool>();
+        }
+
+        if (!objectPool.pools.Exists(p => p.tag == poolTag))
+        {
+            objectPool.pools.Add(new ObjectPool.Pool
+            {
+                tag = poolTag,
+                prefab = objectToPlace,
+                size = initialPoolSize
+            });
+        }
+    }
+
+    protected override void OnEnabled()
+    {
+        base.OnEnabled();
+        if (_raycastManager != null && _planeManager != null)
+        {
+            _raycastManager.enabled = true;
+            _planeManager.enabled = true;
+            ShowFeedback("Mode placement activé", FeedbackType.Success);
+        }
+    }
+
+    protected override void OnDisabled()
+    {
+        base.OnDisabled();
+        if (_raycastManager != null && _planeManager != null)
+        {
+            _raycastManager.enabled = false;
+            _planeManager.enabled = false;
+        }
     }
 
     void Update()
     {
-        if (_planeManager.trackables.count == 0)
+        if (!isEnabled) return;
+
+        // Vérification supplémentaire des composants
+        if (_planeManager == null)
         {
+            Debug.LogError("_planeManager est null dans Update");
             return;
         }
 
+        // Log pour le débogage
+        if (Time.frameCount % 60 == 0) // Log toutes les secondes environ
+        {
+            Debug.Log($"État du PlaceOnPlane: isEnabled={isEnabled}, planeManager.enabled={_planeManager.enabled}, planeManager.trackables.count={_planeManager.trackables.count}");
+            
+            // Vérifier si des plans sont présents mais non visibles
+            if (_planeManager.trackables.count > 0)
+            {
+                Debug.Log("Plans détectés mais peut-être non visibles. Vérifiez le material dans le prefab de plan.");
+                
+                // Forcer l'activation des plans
+                foreach (var plane in _planeManager.trackables)
+                {
+                    plane.gameObject.SetActive(true);
+                }
+            }
+        }
+
+        if (_planeManager.trackables.count == 0)
+        {
+            ShowTrackingState(false);
+            return;
+        }
+
+        ShowTrackingState(true);
+        HandleTouchInput();
+    }
+
+    private void HandleTouchInput()
+    {
         if (Input.touchCount > 0)
         {
             Touch touch = Input.GetTouch(0);
 
             if (touch.phase == TouchPhase.Began)
             {
-                Debug.Log("Touch détecté à : " + touch.position);
-
-                Ray ray = arCamera.ScreenPointToRay(touch.position);
-
-                if (_raycastManager.Raycast(ray, _hits, TrackableType.PlaneWithinPolygon))
-                {
-                    var hitPlane = _planeManager.GetPlane(_hits[0].trackableId);
-
-                    if (hitPlane.trackingState == TrackingState.Tracking)
-                    {
-                        Debug.Log("Raycast sur un plan actif.");
-
-                        Pose hitPose = _hits[0].pose;
-                        Instantiate(objectToPlace, hitPose.position, hitPose.rotation);
-
-                        Debug.Log("Objet instancié à : " + hitPose.position);
-
-                        // ➔ Correction ici avec FindFirstObjectByType
-                        FindFirstObjectByType<FeedbackManager>().ShowMessage("Surface détectée !");
-                    }
-                    else
-                    {
-                        Debug.LogWarning("Raycast trouvé un plan non tracké, pas d'instanciation.");
-                    }
-                }
-                else
-                {
-                    Debug.LogWarning("Raycast échoué : aucun plan sous le doigt.");
-                }
+                ProcessTouch(touch);
             }
+        }
+    }
+
+    private void ProcessTouch(Touch touch)
+    {
+        Debug.Log($"Touch détecté à : {touch.position}");
+
+        if (raycastCache == null)
+        {
+            raycastCache = new RaycastCache();
+            Debug.Log("RaycastCache initialisé");
+        }
+
+        if (arCamera == null)
+        {
+            Debug.LogError("La caméra AR n'est pas assignée ! Réassignation automatique...");
+            arCamera = Camera.main;
+            if (arCamera == null)
+            {
+                Debug.LogError("Impossible de trouver la caméra principale");
+                ShowFeedback("Erreur caméra", FeedbackType.Error);
+                return;
+            }
+        }
+
+        if (IsCachedRaycastValid(touch.position))
+        {
+            HandleRaycastHit();
+        }
+        else
+        {
+            PerformNewRaycast(touch.position);
+        }
+    }
+
+    private bool IsCachedRaycastValid(Vector2 touchPosition)
+    {
+        return raycastCache.hits != null &&
+               raycastCache.touchPosition == touchPosition &&
+               Time.time - raycastCache.timestamp < raycastCacheDuration;
+    }
+
+    private void PerformNewRaycast(Vector2 touchPosition)
+    {
+        // Vérifications des composants critiques
+        if (arCamera == null)
+        {
+            Debug.LogError("arCamera est null dans PerformNewRaycast");
+            return;
+        }
+
+        if (_raycastManager == null)
+        {
+            Debug.LogError("_raycastManager est null dans PerformNewRaycast");
+            return;
+        }
+
+        if (_hits == null)
+        {
+            Debug.LogError("_hits est null dans PerformNewRaycast, réinitialisation...");
+            _hits = new List<ARRaycastHit>();
+        }
+
+        Ray ray = arCamera.ScreenPointToRay(touchPosition);
+        Debug.Log($"Tentative de raycast depuis caméra: {arCamera.name} à position: {touchPosition}");
+
+        if (_raycastManager.Raycast(ray, _hits, TrackableType.PlaneWithinPolygon))
+        {
+            if (_hits.Count > 0)
+            {
+                Debug.Log($"Raycast réussi: {_hits.Count} hits trouvés");
+                
+                // Initialiser raycastCache si nécessaire
+                if (raycastCache == null)
+                {
+                    raycastCache = new RaycastCache();
+                }
+                
+                raycastCache.touchPosition = touchPosition;
+                raycastCache.hits = new List<ARRaycastHit>(_hits);
+                raycastCache.timestamp = Time.time;
+                HandleRaycastHit();
+            }
+            else
+            {
+                Debug.LogWarning("Raycast a retourné true mais aucun hit.");
+                ShowFeedback("Surface non trouvée", FeedbackType.Error);
+            }
+        }
+        else
+        {
+            Debug.LogWarning("Raycast échoué : aucun plan sous le doigt.");
+            ShowFeedback("Aucune surface détectée", FeedbackType.Error);
+        }
+    }
+
+    private void HandleRaycastHit()
+    {
+        // Vérifications de sécurité
+        if (_hits == null || _hits.Count == 0)
+        {
+            Debug.LogError("_hits est null ou vide dans HandleRaycastHit");
+            return;
+        }
+
+        if (_planeManager == null)
+        {
+            Debug.LogError("_planeManager est null dans HandleRaycastHit");
+            return;
+        }
+
+        var hitPlane = _planeManager.GetPlane(_hits[0].trackableId);
+
+        if (hitPlane == null)
+        {
+            Debug.LogWarning("Impossible de trouver le plan correspondant au trackableId");
+            ShowFeedback("Plan non trouvé", FeedbackType.Error);
+            return;
+        }
+
+        if (hitPlane.trackingState == TrackingState.Tracking)
+        {
+            PlaceObject(_hits[0].pose);
+        }
+        else
+        {
+            Debug.LogWarning("Raycast trouvé un plan non tracké, pas d'instanciation.");
+            ShowFeedback("Surface non stable", FeedbackType.Error);
+        }
+    }
+
+    private void PlaceObject(Pose hitPose)
+    {
+        Debug.Log("Raycast sur un plan actif.");
+
+        GameObject placedObject = objectPool.SpawnFromPool(poolTag, hitPose.position, hitPose.rotation);
+        if (placedObject != null)
+        {
+            Debug.Log($"Objet instancié à : {hitPose.position}");
+            ShowFeedback("Objet placé !", FeedbackType.Success);
+        }
+        else
+        {
+            Debug.LogError("Échec de la création d'objet depuis le pool");
+            ShowFeedback("Erreur de placement", FeedbackType.Error);
         }
     }
 }
