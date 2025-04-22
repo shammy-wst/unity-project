@@ -29,6 +29,9 @@ public class ImageTracking : MonoBehaviour
                     {
                         GameObject newPrefab = Instantiate(trackedPrefab, trackedImage.transform.position, trackedImage.transform.rotation);
                         spawnedPrefabs.Add(trackedImage.trackableId, newPrefab);
+
+                        // ➔ Correction ici avec FindFirstObjectByType
+                        FindFirstObjectByType<FeedbackManager>().ShowMessage("Image reconnue !");
                     }
                 }
                 else

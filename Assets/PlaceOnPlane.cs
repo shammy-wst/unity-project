@@ -49,6 +49,9 @@ public class PlaceOnPlane : MonoBehaviour
                         Instantiate(objectToPlace, hitPose.position, hitPose.rotation);
 
                         Debug.Log("Objet instancié à : " + hitPose.position);
+
+                        // ➔ Correction ici avec FindFirstObjectByType
+                        FindFirstObjectByType<FeedbackManager>().ShowMessage("Surface détectée !");
                     }
                     else
                     {
