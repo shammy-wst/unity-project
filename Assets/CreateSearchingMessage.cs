@@ -1,6 +1,9 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using UnityEngine.AI;
+using Unity.AI.Navigation;
+using System;
 
 /// <summary>
 /// Crée un message de recherche d'image pour le mode de tracking d'images
@@ -14,10 +17,17 @@ public class CreateSearchingMessage : MonoBehaviour
 
     void Start()
     {
+        var existingMessages = UnityEngine.Object.FindObjectsByType<CreateSearchingMessage>(UnityEngine.FindObjectsSortMode.None);
+        if (existingMessages.Length > 1)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
         // Trouver automatiquement le canvas si non spécifié
         if (targetCanvas == null)
         {
-            Canvas[] canvases = FindObjectsOfType<Canvas>();
+            var canvases = UnityEngine.Object.FindObjectsByType<Canvas>(UnityEngine.FindObjectsSortMode.None);
             foreach (Canvas canvas in canvases)
             {
                 if (canvas.name.Contains("Image") || canvas.name.Contains("image"))

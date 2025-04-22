@@ -2,6 +2,14 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.XR.ARFoundation;
 using UnityEngine.UI;
+using System.Collections.Generic;
+using UnityEngine.AI;
+using Unity.AI.Navigation;
+using System;
+using UnityEngine.XR.ARSubsystems;
+using System.Linq;
+
+#pragma warning disable 0618  // Supprime les avertissements d'obsolescence
 
 public class ModeSelector : MonoBehaviour
 {
@@ -21,29 +29,45 @@ public class ModeSelector : MonoBehaviour
     public ImageTracking imageTrackingScript;
 
     [Header("Camera AR")]
-    public ARCameraBackground arCameraBackground; // <-- AJOUT ici
+    public ARCameraBackground arCameraBackground;
 
     private const float FADE_DURATION = 0.5f;
 
-    void Start()
+    private void OnEnable()
     {
-        InitializeCanvasGroups();
-        
-        // S'abonner aux événements ARPlane
         if (planeManager != null)
         {
             planeManager.planesChanged += OnPlanesChanged;
         }
-        
+    }
+
+    private void OnDisable()
+    {
+        if (planeManager != null)
+        {
+            planeManager.planesChanged -= OnPlanesChanged;
+        }
+    }
+
+    private void Start()
+    {
+        InitializeCanvasGroups();
         DisableAllFeatures();
         ShowMainMenu();
+
+        var monoBehaviours = UnityEngine.Object.FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None);
+        var features = monoBehaviours.OfType<IARFeature>();
+        foreach (var feature in features)
+        {
+            feature.Enable();
+        }
     }
 
     private void InitializeCanvasGroups()
     {
-        menuCanvasGroup = menuCanvas.GetComponent<CanvasGroup>();
-        planeCanvasGroup = planeCanvas.GetComponent<CanvasGroup>();
-        imageCanvasGroup = imageCanvas.GetComponent<CanvasGroup>();
+        menuCanvasGroup = menuCanvas?.GetComponent<CanvasGroup>();
+        planeCanvasGroup = planeCanvas?.GetComponent<CanvasGroup>();
+        imageCanvasGroup = imageCanvas?.GetComponent<CanvasGroup>();
 
         if (menuCanvasGroup == null || planeCanvasGroup == null || imageCanvasGroup == null)
         {
@@ -67,58 +91,74 @@ public class ModeSelector : MonoBehaviour
         planeCanvasGroup.alpha = 0f;
         imageCanvasGroup.alpha = 0f;
 
-        if (arCameraBackground != null) arCameraBackground.enabled = false; // <-- Désactive l'image caméra au menu
+        if (arCameraBackground != null) arCameraBackground.enabled = false;
+    }
+
+    private void OnPlanesChanged(ARPlanesChangedEventArgs args)
+    {
+        if (args.added != null)
+        {
+            foreach (var plane in args.added)
+            {
+                if (plane != null)
+                {
+                    plane.gameObject.SetActive(true);
+                    var renderer = plane.GetComponent<Renderer>();
+                    if (renderer != null)
+                    {
+                        renderer.enabled = true;
+                        if (renderer.material != null && renderer.material.color.a < 0.1f)
+                        {
+                            var color = renderer.material.color;
+                            color.a = 0.5f;
+                            renderer.material.color = color;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public void StartPlaneMode()
     {
-        // Force direct activation of components
         planeManager.enabled = true;
         raycastManager.enabled = true;
         
-        // Vérifier et configurer le prefab pour la visualisation des plans
         if (planeManager != null)
         {
-            // Vérifier si un prefab est assigné
             if (planeManager.planePrefab == null)
             {
-                Debug.LogError("Aucun prefab assigné au ARPlaneManager! Essayez d'assigner ARPlanePrefab dans l'inspecteur.");
-            }
-            else
-            {
-                Debug.Log($"Prefab de plan utilisé: {planeManager.planePrefab.name}");
+                Debug.LogError("Aucun prefab assigné au ARPlaneManager!");
+                return;
             }
             
-            // Configurer la visualisation des plans
             planeManager.enabled = true;
             planeManager.SetTrackablesActive(true);
             
-            // Activer le rendu des plans
-            var planesInScene = FindObjectsOfType<ARPlane>();
-            Debug.Log($"Nombre de plans détectés: {planesInScene.Length}");
-            foreach (var plane in planesInScene)
+            var planes = UnityEngine.Object.FindObjectsByType<ARPlane>(FindObjectsSortMode.None);
+            foreach (var plane in planes)
             {
-                plane.gameObject.SetActive(true);
-                if (plane.GetComponent<Renderer>() != null)
+                if (plane != null)
                 {
-                    plane.GetComponent<Renderer>().enabled = true;
+                    plane.gameObject.SetActive(true);
+                    var renderer = plane.GetComponent<Renderer>();
+                    if (renderer != null)
+                    {
+                        renderer.enabled = true;
+                    }
                 }
             }
-            
-            Debug.Log($"Visualisation des plans activée: planeManager.enabled={planeManager.enabled}");
         }
         
-        if (placeOnPlaneScript != null) {
-            placeOnPlaneScript.arCamera = Camera.main; // Force camera reference
+        if (placeOnPlaneScript != null)
+        {
+            placeOnPlaneScript.arCamera = Camera.main;
             placeOnPlaneScript.Enable();
-            // Double-check critical components
-            Debug.Log($"PlaneMode activated: planeManager={planeManager.enabled}, raycastManager={raycastManager.enabled}");
         }
         
-        // Activer la caméra AR pour le mode surface aussi
-        if (arCameraBackground != null) {
+        if (arCameraBackground != null)
+        {
             arCameraBackground.enabled = true;
-            Debug.Log("ARCameraBackground activé pour le mode surface");
         }
         
         StartCoroutine(SwitchToMode(planeCanvas, planeCanvasGroup));
@@ -129,7 +169,7 @@ public class ModeSelector : MonoBehaviour
         if (placeOnPlaneScript != null) placeOnPlaneScript.Disable();
         if (imageTrackingScript != null) imageTrackingScript.Enable();
 
-        if (arCameraBackground != null) arCameraBackground.enabled = true; // <-- Active la caméra
+        if (arCameraBackground != null) arCameraBackground.enabled = true;
         StartCoroutine(SwitchToMode(imageCanvas, imageCanvasGroup));
     }
 
@@ -137,7 +177,7 @@ public class ModeSelector : MonoBehaviour
     {
         DisableAllFeatures();
         
-        if (arCameraBackground != null) arCameraBackground.enabled = false; // <-- Désactive la caméra
+        if (arCameraBackground != null) arCameraBackground.enabled = false;
 
         StartCoroutine(SwitchToMainMenu());
     }
@@ -160,45 +200,5 @@ public class ModeSelector : MonoBehaviour
         menuCanvas.SetActive(true);
         
         yield return StartCoroutine(UIAnimationUtility.FadeInCanvas(menuCanvasGroup, FADE_DURATION));
-    }
-
-    private void OnDestroy()
-    {
-        // Se désabonner aux événements
-        if (planeManager != null)
-        {
-            planeManager.planesChanged -= OnPlanesChanged;
-        }
-    }
-    
-    private void OnPlanesChanged(ARPlanesChangedEventArgs args)
-    {
-        // Activer le rendu des nouveaux plans
-        foreach (var plane in args.added)
-        {
-            Debug.Log($"Nouveau plan détecté: {plane.trackableId}");
-            plane.gameObject.SetActive(true);
-            
-            // Activer le renderer
-            if (plane.GetComponent<Renderer>() != null)
-            {
-                var renderer = plane.GetComponent<Renderer>();
-                renderer.enabled = true;
-                
-                // Vérifier si le matériau est visible
-                if (renderer.material != null)
-                {
-                    Debug.Log($"Matériau du plan: {renderer.material.name}");
-                    
-                    // S'assurer que le matériau est visible
-                    if (renderer.material.color.a < 0.1f)
-                    {
-                        Color color = renderer.material.color;
-                        color.a = 0.5f; // Rendre le matériau semi-transparent
-                        renderer.material.color = color;
-                    }
-                }
-            }
-        }
     }
 }

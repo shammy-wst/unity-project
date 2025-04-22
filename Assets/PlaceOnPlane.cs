@@ -95,6 +95,9 @@ public class PlaceOnPlane : ARManagerBase
     {
         if (!isEnabled) return;
 
+        // Ne pas afficher les messages de debug si le jeu a commencé
+        bool gameStarted = (GameManager.Instance != null && GameManager.Instance.HasGameStarted());
+        
         // Vérification supplémentaire des composants
         if (_planeManager == null)
         {
@@ -102,8 +105,8 @@ public class PlaceOnPlane : ARManagerBase
             return;
         }
 
-        // Log pour le débogage
-        if (Time.frameCount % 60 == 0) // Log toutes les secondes environ
+        // Log pour le débogage seulement si le jeu n'a pas commencé
+        if (Time.frameCount % 60 == 0 && !gameStarted) // Log toutes les secondes environ
         {
             Debug.Log($"État du PlaceOnPlane: isEnabled={isEnabled}, planeManager.enabled={_planeManager.enabled}, planeManager.trackables.count={_planeManager.trackables.count}");
             
@@ -273,18 +276,40 @@ public class PlaceOnPlane : ARManagerBase
 
     private void PlaceObject(Pose hitPose)
     {
-        Debug.Log("Raycast sur un plan actif.");
+        if (!GameManager.Instance.CanPlaceCube())
+        {
+            ShowFeedback("Maximum de cubes atteint!", FeedbackType.Error);
+            return;
+        }
 
         GameObject placedObject = objectPool.SpawnFromPool(poolTag, hitPose.position, hitPose.rotation);
+        
         if (placedObject != null)
         {
-            Debug.Log($"Objet instancié à : {hitPose.position}");
-            ShowFeedback("Objet placé !", FeedbackType.Success);
+            // Ajouter le composant DefenseCube s'il n'existe pas déjà
+            DefenseCube defenseCube = placedObject.GetComponent<DefenseCube>();
+            if (defenseCube == null)
+            {
+                defenseCube = placedObject.AddComponent<DefenseCube>();
+            }
+
+            // Ajouter un Collider si nécessaire
+            if (placedObject.GetComponent<Collider>() == null)
+            {
+                placedObject.AddComponent<BoxCollider>();
+            }
+
+            // Définir la couche pour les cubes de défense
+            placedObject.layer = LayerMask.NameToLayer("DefenseCube");
+
+            // Informer le GameManager du nouveau cube
+            GameManager.Instance.AddCube(placedObject);
+            
+            ShowFeedback("Cube placé!", FeedbackType.Success);
         }
         else
         {
-            Debug.LogError("Échec de la création d'objet depuis le pool");
-            ShowFeedback("Erreur de placement", FeedbackType.Error);
+            ShowFeedback("Erreur lors du placement", FeedbackType.Error);
         }
     }
 }
